@@ -1,11 +1,10 @@
 #!/usr/bin/python3
-from flask import Flask
+from flask import Flask, request
 from flask_restplus import Api, Resource, abort, reqparse
 from pymongo import MongoClient
-from flask import request
 import json
 import requests
-# from bson.objectid import ObjectId
+from bson.objectid import ObjectId
 
 __DEBUG__ = True
 
@@ -81,8 +80,24 @@ class ImportCollection(Resource):
         return mongo_coll.insert_one(data).inserted_id
 
 
+@api.route('/<collections>/<collection_id>')
+class DeleteCollection(Resource):
+    def delete(self, collections, collection_id):
+        mongo_coll = mongo_db[collections]
+        record = mongo_coll.find_one_and_delete(
+            {'_id': ObjectId(collection_id)})
+        if record:
+            return {
+                'message': 'Collection = {} is removed from the database!'.format(collection_id)
+            }
+        else:
+            return {
+                'message': 'Collection = {} is found from the database!'.format(collection_id)
+            }, 400
+
+
 def main():
-    app.run(host='0', debug=__DEBUG__)
+    app.run(host='0', port=8008, debug=__DEBUG__)
 
 
 if __name__ == '__main__':
