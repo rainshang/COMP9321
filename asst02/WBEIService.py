@@ -2,11 +2,12 @@
 import os
 from flask import Flask, request
 from flask_restplus import Api, Resource, fields, abort
-from pymongo import MongoClient
+from pymongo import MongoClient, ASCENDING, DESCENDING
 import json
 import requests
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
+import re
 
 __DEBUG__ = True
 
@@ -145,9 +146,7 @@ class Collections(Resource):
             cursor.close()
             return response
         else:
-            return {
-                'message': 'Collection = {} is found from the database!'.format(collections)
-            }, 400
+            abort(400, 'Collection = {} is found from the database!'.format(collections))
 
 
 @api.route('/<collections>/<collection_id>')
@@ -173,13 +172,10 @@ class CollectionsCollection_id(Resource):
                     'message': 'Collection = {} is removed from the database!'.format(collection_id)
                 }
             else:
-                return {
-                    'message': 'Collection = {} is found from the database!'.format(collection_id)
-                }, 400
-        except Exception as e:
-            return {
-                'message': str(e)
-            }, 400
+                abort(400, 'Collection = {} is found from the database!'.format(
+                    collection_id))
+        except InvalidId as e:
+            abort(400, e)
 
     @api.doc(
         responses={
@@ -217,13 +213,10 @@ class CollectionsCollection_id(Resource):
                     'entries': record['entries']
                 }
             else:
-                return {
-                    'message': 'Collection = {} is found from the database!'.format(collection_id)
-                }, 400
+                abort(400, 'Collection = {} is found from the database!'.format(
+                    collection_id))
         except InvalidId as e:
-            return {
-                'message': str(e)
-            }, 400
+            abort(400, e)
 
 
 @api.route('/<collections>/<collection_id>/<int:year>/<country>')
@@ -246,36 +239,127 @@ class CollectionsCollection_idYearCountry(Resource):
     def get(self, collections, collection_id, year, country):
         mongo_coll = mongo_db[collections]
         try:
-            cursor = mongo_coll.find(
-                {'_id': ObjectId(collection_id)},
-                {
-                    'indicator': 1,
+            cursor = mongo_coll.aggregate([
+                {'$match': {'_id': ObjectId(collection_id)}},
+                {'$project': {
+                    'indicator': True,
                     'entries': {
-                        '$elemMatch': {
-                            'country': country,
-                            'date': str(year)
+                        '$filter': {
+                            'input': '$entries',
+                            'as': 'item',
+                            'cond': {
+                                '$and': [
+                                    {'$eq': ['$$item.country', country]},
+                                    {'$eq': ['$$item.date', str(year)]}
+                                ]
+                            }
                         }
                     }
-                }
-            )
-            if cursor and cursor.count():
+                }}
+            ])
+            if cursor:
                 for record in cursor:
                     cursor.close()
-                    return {
-                        'collection_id': str(record['_id']),
-                        'indicator': record['indicator'],
-                        'country': country,
-                        'year': str(year),
-                        'value': record['entries'][0]['value'],
-                    }
+                    entries = record['entries']
+                    if entries:
+                        return {
+                            'collection_id': str(record['_id']),
+                            'indicator': record['indicator'],
+                            'country': country,
+                            'year': str(year),
+                            'value': entries[0]['value'],
+                        }
+                    else:
+                        abort(400, 'Record is found from the database!')
             else:
-                return {
-                    'message': 'Record is found from the database!'
-                }, 400
+                abort(400, 'Record is found from the database!')
         except InvalidId as e:
-            return {
-                'message': str(e)
-            }, 400
+            abort(400, e)
+
+
+@api.route('/<collections>/<collection_id>/<int:year>')
+class CollectionsCollection_idYearQuery(Resource):
+    parser = parser = api.parser()
+    parser.add_argument('q', store_missing=False)
+
+    @api.doc(
+        parser=parser,
+        responses={
+            200: """
+            {
+                "indicator": "NY.GDP.MKTP.CD",
+                "indicator_value": "GDP (current US$)",
+                "entries" : [
+                                {
+                                    "country": "Arab World",
+                                    "date": "2016",
+                                    "value": 2500164034395.78
+                                },
+                                ...
+                            ]
+            }""",
+            400: """
+            {
+                "message": "<error msg>"
+            }"""
+        })
+    def get(self, collections, collection_id, year):
+        args = CollectionsCollection_idYearQuery.parser.parse_args()
+        cursor = None
+        try:
+            if 'q' in args:
+                q = args['q']
+                match = re.match(r'^(top|bottom)(\d+)$', q)
+                if match:
+                    N = int(match.group(2))
+                    if N > 0 and N < 101:
+                        mongo_coll = mongo_db[collections]
+                        sort = None
+                        if match.group(1) == 'top':
+                            sort = DESCENDING
+                        else:
+                            sort = ASCENDING
+
+                        cursor = mongo_coll.aggregate([
+                            {'$match': {'_id': ObjectId(collection_id)}},
+                            {'$unwind': '$entries'},
+                            {'$match': {'entries.date': str(year)}},
+                            {'$sort': {'entries.value': sort}},
+                            {'$limit': N},
+                            {'$group': {
+                                '_id': '$_id',
+                                'indicator': {'$first': '$indicator'},
+                                'indicator_value': {'$first': '$indicator_value'},
+                                'entries': {'$push': '$entries'}
+                            }}
+                        ])
+                    else:
+                        abort(400, '<N> should be in range [1, 100]')
+                else:
+                    abort(400, "<query> should be 'top<N>' or 'bottom<N>'")
+            else:
+                mongo_coll = mongo_db[collections]
+                cursor = mongo_coll.aggregate([
+                    {'$match': {'_id': ObjectId(collection_id)}},
+                    {'$unwind': '$entries'},
+                    {'$match': {'entries.date': str(year)}},
+                    {'$group': {
+                        '_id': '$_id',
+                        'indicator': {'$first': '$indicator'},
+                        'indicator_value': {'$first': '$indicator_value'},
+                        'entries': {'$push': '$entries'}
+                    }}
+                ])
+        except InvalidId as e:
+            abort(400, e)
+
+        if cursor:
+            for record in cursor:
+                cursor.close()
+                del record['_id']
+                return record
+        else:
+            abort(400, 'Record is found from the database!')
 
 
 def main():
