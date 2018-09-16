@@ -1,5 +1,4 @@
 #!/usr/bin/python3
-import os
 from flask import Flask, request
 from flask_restplus import Api, Resource, fields, abort
 from pymongo import MongoClient, ASCENDING, DESCENDING
@@ -146,7 +145,8 @@ class Collections(Resource):
             cursor.close()
             return response
         else:
-            abort(400, 'Collection = {} is found from the database!'.format(collections))
+            abort(400, 'Cannot find Collections = {} from the database!'.format(
+                collections))
 
 
 @api.route('/<collections>/<collection_id>')
@@ -172,8 +172,8 @@ class CollectionsCollection_id(Resource):
                     'message': 'Collection = {} is removed from the database!'.format(collection_id)
                 }
             else:
-                abort(400, 'Collection = {} is found from the database!'.format(
-                    collection_id))
+                abort(400, "Cannot find Collection = {} in '{}'".format(
+                    collection_id, collections))
         except InvalidId as e:
             abort(400, e)
 
@@ -213,8 +213,8 @@ class CollectionsCollection_id(Resource):
                     'entries': record['entries']
                 }
             else:
-                abort(400, 'Collection = {} is found from the database!'.format(
-                    collection_id))
+                abort(400, "Cannot find Collection = {} in '{}'".format(
+                    collection_id, collections))
         except InvalidId as e:
             abort(400, e)
 
@@ -270,9 +270,9 @@ class CollectionsCollection_idYearCountry(Resource):
                             'value': entries[0]['value'],
                         }
                     else:
-                        abort(400, 'Record is found from the database!')
+                        abort(400, 'Record is not found from the database!')
             else:
-                abort(400, 'Record is found from the database!')
+                abort(400, 'Record is not found from the database!')
         except InvalidId as e:
             abort(400, e)
 
@@ -359,11 +359,10 @@ class CollectionsCollection_idYearQuery(Resource):
                 del record['_id']
                 return record
         else:
-            abort(400, 'Record is found from the database!')
+            abort(400, 'Record is not found from the database!')
 
 
 def main():
-    os.system('hostname -i')
     app.run(host='0', port=8008, debug=__DEBUG__)
 
 
