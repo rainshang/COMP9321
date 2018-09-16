@@ -1,10 +1,12 @@
 #!/usr/bin/python3
+import os
 from flask import Flask, request
 from flask_restplus import Api, Resource, fields, abort
 from pymongo import MongoClient
 import json
 import requests
 from bson.objectid import ObjectId
+from bson.errors import InvalidId
 
 __DEBUG__ = True
 
@@ -103,16 +105,16 @@ class Collections(Resource):
     @api.doc(
         responses={
             200: """
-            [ 
-                { 
-                    "location" : "/<collections>/<collection_id_1>", 
-                    "collection_id" : "collection_id_1",  
+            [
+                {
+                    "location" : "/<collections>/<collection_id_1>",
+                    "collection_id" : "collection_id_1",
                     "creation_time": "<time>",
                     "indicator" : "<indicator>"
                     },
-                { 
-                    "location" : "/<collections>/<collection_id_2>", 
-                    "collection_id" : "collection_id_2",  
+                {
+                    "location" : "/<collections>/<collection_id_2>",
+                    "collection_id" : "collection_id_2",
                     "creation_time": "<time>",
                     "indicator" : "<indicator>"
                 },
@@ -125,21 +127,22 @@ class Collections(Resource):
         })
     def get(self, collections):
         mongo_coll = mongo_db[collections]
-        record = mongo_coll.find({}, {
+        cursor = mongo_coll.find({}, {
             "indicator": 1
         },)
-        if record:
+        if cursor:
             response = []
-            for doc in record:
-                o_id = doc['_id']
+            for record in cursor:
+                o_id = record['_id']
                 response.append(
                     {
                         'location': '/{}/{}'.format(collections, o_id),
                         'collection_id': str(o_id),
                         'creation_time': o_id.generation_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
-                        'indicator': doc['indicator']
+                        'indicator': record['indicator']
                     }
                 )
+            cursor.close()
             return response
         else:
             return {
@@ -152,7 +155,7 @@ class CollectionsCollection_id(Resource):
     @api.doc(
         responses={
             200: """
-            { 
+            {
                 "message" :"Collection = <collection_id> is removed from the database!"
             }""",
             400: """
@@ -162,19 +165,121 @@ class CollectionsCollection_id(Resource):
         })
     def delete(self, collections, collection_id):
         mongo_coll = mongo_db[collections]
-        record = mongo_coll.find_one_and_delete(
-            {'_id': ObjectId(collection_id)})
-        if record:
+        try:
+            record = mongo_coll.find_one_and_delete(
+                {'_id': ObjectId(collection_id)})
+            if record:
+                return {
+                    'message': 'Collection = {} is removed from the database!'.format(collection_id)
+                }
+            else:
+                return {
+                    'message': 'Collection = {} is found from the database!'.format(collection_id)
+                }, 400
+        except Exception as e:
             return {
-                'message': 'Collection = {} is removed from the database!'.format(collection_id)
-            }
-        else:
+                'message': str(e)
+            }, 400
+
+    @api.doc(
+        responses={
+            200: """
+            {
+                "collection_id" : "<collection_id>",
+                "indicator": "NY.GDP.MKTP.CD",
+                "indicator_value": "GDP (current US$)",
+                "creation_time" : "<creation_time>"
+                "entries" : [
+                                {"country": "Arab World",  "date": "2016",
+                                    "value": 2500164034395.78 },
+                                {"country": "Australia",   "date": "2016",
+                                    "value": 780016444034.00 },
+                                ...
+                ]
+            }""",
+            400: """
+            {
+                "message": "<error msg>"
+            }"""
+        })
+    def get(self, collections, collection_id):
+        mongo_coll = mongo_db[collections]
+        try:
+            record = mongo_coll.find_one(
+                {'_id': ObjectId(collection_id)})
+            if record:
+                o_id = record['_id']
+                return {
+                    'collection_id': str(o_id),
+                    'indicator': record['indicator'],
+                    'indicator_value': record['indicator_value'],
+                    'creation_time': o_id.generation_time.strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    'entries': record['entries']
+                }
+            else:
+                return {
+                    'message': 'Collection = {} is found from the database!'.format(collection_id)
+                }, 400
+        except InvalidId as e:
             return {
-                'message': 'Collection = {} is found from the database!'.format(collection_id)
+                'message': str(e)
+            }, 400
+
+
+@api.route('/<collections>/<collection_id>/<int:year>/<country>')
+class CollectionsCollection_idYearCountry(Resource):
+    @api.doc(
+        responses={
+            200: """
+            {
+                "collection_id": <collection_id>,
+                "indicator" : "<indicator_id>",
+                "country": "<country>,
+                "year": "<year">,
+                "value": <indicator_value_for_the_country>
+            }""",
+            400: """
+            {
+                "message": "<error msg>"
+            }"""
+        })
+    def get(self, collections, collection_id, year, country):
+        mongo_coll = mongo_db[collections]
+        try:
+            cursor = mongo_coll.find(
+                {'_id': ObjectId(collection_id)},
+                {
+                    'indicator': 1,
+                    'entries': {
+                        '$elemMatch': {
+                            'country': country,
+                            'date': str(year)
+                        }
+                    }
+                }
+            )
+            if cursor and cursor.count():
+                for record in cursor:
+                    cursor.close()
+                    return {
+                        'collection_id': str(record['_id']),
+                        'indicator': record['indicator'],
+                        'country': country,
+                        'year': str(year),
+                        'value': record['entries'][0]['value'],
+                    }
+            else:
+                return {
+                    'message': 'Record is found from the database!'
+                }, 400
+        except InvalidId as e:
+            return {
+                'message': str(e)
             }, 400
 
 
 def main():
+    os.system('hostname -i')
     app.run(host='0', port=8008, debug=__DEBUG__)
 
 
