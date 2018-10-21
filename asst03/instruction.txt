@@ -1,0 +1,15 @@
+1.  Install conda in your machine
+
+                        https://conda.io/docs/user-guide/install/index.html
+
+2.  After installation, in terminal, type:
+
+                        conda create -n 9321_asg3 python
+
+3. 9321_asg3 is the name of your enviroment
+
+4. to activate or deactivate, in terminal type:
+
+                        source activate 9321_asg3
+
+                        source deactivate

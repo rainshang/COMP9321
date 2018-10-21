@@ -1,0 +1,20 @@
+.basic-filter-container {
+    display: table;
+    
+    .basic-filters {
+        display: flex;
+        .basic-filter {
+            margin: 20px;
+            .basic-filter-title {
+                text-align: center;
+                font-size: 13pt;
+                font-family: 'Comic Sans MS';
+                margin-top: 20px;
+                margin-bottom: 10px;
+                background-color: #960001;
+                padding: 10px;
+                color: white;
+            }
+        }
+    }
+}

@@ -1,0 +1,8 @@
+build/
+tests/
+demo/
+
+coverage/
+
+**/*-min.js
+**/*.min.js

@@ -1,0 +1,53 @@
+.home-page {
+    background-image: url('../../images/banner.png');
+    background-size: 100% auto;
+    background-repeat: no-repeat;
+    background-position: center;
+    text-align: center;
+
+    .predict-filter-container {
+        display: table;
+        margin: auto;
+
+        .predict-filters-bg {
+            position: absolute;
+            top: 410px;
+            left: 0;
+            right: 0;
+            z-index: 0;
+            .predict-filters-bg-box {
+                display: inline-block;
+                border-style: solid;
+                border-color: orange;
+                width: 920px;
+                height: 200px;
+                border-width: 4px;
+                background-color: rgba(255, 255, 255, 0.7);
+            }
+        }
+
+        .predict-filters {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            margin-top: -20px;
+            .basic-filter {
+                margin: 20px;
+                .basic-filter-title {
+                    text-align: center;
+                    font-size: 13pt;
+                    font-family: 'Comic Sans MS';
+                    margin-top: 20px;
+                    margin-bottom: 10px;
+                    background-color: #960001;
+                    padding: 10px;
+                    color: white;
+                }
+            }
+        }
+        Button {
+            float: right;
+            margin-top: 50px;
+        }
+    }
+}
