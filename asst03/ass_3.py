@@ -9,6 +9,8 @@ import json
 from Model.RecordReader import RecordReader
 from Model.DataCleanser import DataCleanser
 from Model.Plotter import Plotter
+from werkzeug.datastructures import FileStorage
+from OCR.ocr import *
 
 app = Flask(__name__, static_url_path='', static_folder='PPP/build/')
 CORS(app)
@@ -63,19 +65,34 @@ queryParser.add_argument('bathroom')
 queryParser.add_argument('carpark')
 queryParser.add_argument('type')
 queryParser.add_argument('suburb')
+queryParser.add_argument('floorPlan')
 
 @api.route('/predictPrice')
 @api.expect(queryParser)
 class PredictPrice(Resource):
-    def get(self):
-
+    def post(self):
         # parse query
         args        = queryParser.parse_args()
-        bedroom     = args.get('bedroom')
-        bathroom    = args.get('bathroom')
-        carpark     = args.get('carpark')
-        houseType   = args.get('type')
+
+        floorPlan   = args.get('floorPlan')
         suburb      = args.get('suburb')
+
+        if (floorPlan is not None):
+            print("we have floorPlan",floorPlan)
+            text_detected = detect_text(floorPlan)
+
+            bedroom   = text_detected['bed']
+            bathroom  = text_detected['bath']
+            carpark   = text_detected['carspace']
+            houseType = text_detected['type']
+
+        else:
+            bedroom     = args.get('bedroom')
+            bathroom    = args.get('bathroom')
+            carpark     = args.get('carpark')
+            houseType   = args.get('type')
+
+            print("NO FLOORPLAN")
 
         # get geocode
         resultLocation = requests.get("https://maps.googleapis.com/maps/api/geocode/json?address="+suburb+",Victoria"+"&key=AIzaSyB4x8PJO2adnI_tjpv3dAOBXD-5buVnQlY")
@@ -308,6 +325,21 @@ class transactions(Resource):
             "msg": "distributions all transactions",
             "data": result
         }, 200
+
+upload_parser = api.parser()
+upload_parser.add_argument('file', location='files', type=FileStorage, required=True)
+
+@api.route('/upload')
+@api.expect(upload_parser)
+class Upload(Resource):
+    def post(self):
+        args = upload_parser.parse_args()
+        uploaded_file = args['file']  # This is FileStorage instance
+        print(list(args.keys()))
+
+        detect_text(uploaded_file)
+
+        return {'upload_status': 'done'}, 201
 
 
 if __name__ == '__main__':

@@ -100,9 +100,9 @@ class Predictor(object):
                                             self.suburb_meta[key]["la"],
                                             self.suburb_meta[key]["ln"]]])[0][0]
             if (suburb.lower() == key.lower()):
-                neededSuburb = {"room":room, "bath": bath, "suburb": key, "price": price}
+                neededSuburb = {"room":room, "bath": bath, "carpark": carpark, "suburb": key, "price": price}
             else:
-                result.append({"room":room, "bath": bath, "suburb": key, "price": price})
+                result.append({"room":room, "bath": bath, "carpark": carpark, "suburb": key, "price": price})
 
         result.insert(0, neededSuburb)
 
